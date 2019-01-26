@@ -18,6 +18,7 @@ public:
 
     function(function const& other): small(other.small)
     {
+        std::cout << "copy";
         if (small)
             (reinterpret_cast<function_storage_base const*>(other.smallStorage))->cloneTo(smallStorage);
         else
@@ -35,7 +36,7 @@ public:
         if constexpr (sizeof(function_storage<CallableType>) <= SMALL_SIZE * sizeof(char))
         {
             small = true;
-            new (&smallStorage) function_storage<CallableType>(f);
+            new (&smallStorage) function_storage<CallableType>(std::move(f));
         }
         else
         {
@@ -95,7 +96,7 @@ private:
     public:
         function_storage_base() noexcept {}
         virtual ~function_storage_base() noexcept {}
-        virtual ReturnType invoke(Args... args) = 0;
+        virtual ReturnType invoke(Args&&... args) = 0;
         virtual std::unique_ptr<function_storage_base> clone() const noexcept = 0;
         virtual void cloneTo(void* destination) const = 0;
 
@@ -109,8 +110,11 @@ private:
         CallableType func;
 
     public:
-        function_storage(CallableType f) noexcept: function_storage_base(), func(f) {}
-        ReturnType invoke(Args... args)
+        function_storage() noexcept: function_storage_base() {}
+        function_storage(CallableType const& f) noexcept: function_storage_base(), func(f) {}
+        function_storage(CallableType&& f) noexcept : func(std::move(f)) {}
+
+        ReturnType invoke(Args&&... args)
         {
             return func(args...);
         }

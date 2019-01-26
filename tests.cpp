@@ -167,3 +167,32 @@ TEST(bool_check, positive)
     bool c = (f ? true : false);
     ASSERT_TRUE(c);
 }
+
+TEST(other, main)
+{
+    struct X
+    {
+        X()
+        {
+            std::cout << "main\n";
+        }
+
+        X(X const& other)
+        {
+            std::cout << "copy\n";
+        }
+
+        X(X&& other)
+        {
+            std::cout << "move\n";
+        }
+
+        void operator()()
+        {
+            std::cout << "call\n";
+        }
+    };
+
+    function<void()> f = X();
+    std::function<void()> g = X();
+}
