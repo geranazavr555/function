@@ -127,3 +127,20 @@ TEST(swap, simple)
     ASSERT_EQ(f(), 6);
     ASSERT_EQ(g(), 5);
 }
+
+TEST(moving, simple)
+{
+    function<int()> f([](){return 5;});
+    function<int()> g = std::move(f);
+    ASSERT_EQ(g(), 5);
+}
+
+TEST(moving, operator_eq)
+{
+
+    function<int()> f([](){return 5;});
+    function<int()> g([](){return 6;});
+    ASSERT_EQ(g(), 6);
+    g = std::move(f);
+    ASSERT_EQ(g(), 5);
+}

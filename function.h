@@ -24,12 +24,15 @@ public:
             bigStorage = other.bigStorage->clone();
     }
 
-    //function(function&& other) noexcept; //TODO
+    function(function&& other) noexcept: small(other.small)
+    {
+        memmove(smallStorage, other.smallStorage, SMALL_SIZE);
+    }
 
     template <typename CallableType>
     function(CallableType f)
     {
-        if (sizeof(function_storage<CallableType>) <= SMALL_SIZE * sizeof(char))
+        if constexpr (sizeof(function_storage<CallableType>) <= SMALL_SIZE * sizeof(char))
         {
             small = true;
             new (&smallStorage) function_storage<CallableType>(f);
@@ -65,6 +68,12 @@ public:
             memcpy(smallStorage, other.smallStorage, SMALL_SIZE);
         else
             bigStorage = other.bigStorage->clone();
+        return *this;
+    }
+
+    function& operator=(function&& other) noexcept
+    {
+        this->swap(other);
         return *this;
     }
 
