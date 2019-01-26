@@ -24,7 +24,7 @@ public:
             bigStorage = other.bigStorage->clone();
     }
 
-    function(function&& other) noexcept; //TODO
+    //function(function&& other) noexcept; //TODO
 
     template <typename CallableType>
     function(CallableType f)
@@ -49,7 +49,14 @@ public:
             bigStorage.reset();
     }
 
-    void swap(function& other) noexcept; //TODO
+    void swap(function& other) noexcept
+    {
+        std::swap(small, other.small);
+        char tmp[SMALL_SIZE];
+        memcpy(tmp, other.smallStorage, SMALL_SIZE);
+        memcpy(other.smallStorage, smallStorage, SMALL_SIZE);
+        memcpy(smallStorage, tmp, SMALL_SIZE);
+    }
 
     function& operator=(function const& other)
     {
@@ -106,7 +113,8 @@ private:
 
 private:
     bool small;
-    union {
+    union
+    {
         char smallStorage[SMALL_SIZE];
         std::unique_ptr<function_storage_base> bigStorage;
     };

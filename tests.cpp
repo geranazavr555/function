@@ -116,3 +116,14 @@ TEST(copying, operator_eq)
     g = f;
     ASSERT_EQ(g(), 4);
 }
+
+TEST(swap, simple)
+{
+    function<int()> f([](){return 5;});
+    function<int()> g([](){return 6;});
+    ASSERT_EQ(f(), 5);
+    ASSERT_EQ(g(), 6);
+    std::swap(f, g);
+    ASSERT_EQ(f(), 6);
+    ASSERT_EQ(g(), 5);
+}
