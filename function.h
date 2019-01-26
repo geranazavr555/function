@@ -5,6 +5,17 @@
 #include <functional>
 
 constexpr size_t SMALL_SIZE = 32;
+constexpr size_t SMALL_ALIGN = 32;
+
+namespace
+{
+    template <typename T>
+    struct is_small
+    {
+        static constexpr bool value =
+                sizeof(T) <= SMALL_SIZE && alignof(T) <= SMALL_ALIGN && std::is_nothrow_move_constructible<T>::value;
+    };
+}
 
 template <typename T>
 class function;
@@ -12,6 +23,8 @@ class function;
 template <typename ReturnType, typename... Args>
 class function<ReturnType(Args...)>
 {
+    typedef std::aligned_storage<SMALL_SIZE, SMALL_ALIGN>::type SmallObjectType;
+
 public:
     function() noexcept : small(false), bigStorage() {}
     function(std::nullptr_t) noexcept : function() {}
@@ -19,7 +32,7 @@ public:
     function(function const& other): small(other.small)
     {
         if (small)
-            (reinterpret_cast<function_storage_base const*>(other.smallStorage))->cloneTo(smallStorage);
+            (reinterpret_cast<function_storage_base const*>(&other.smallStorage))->cloneTo(&smallStorage);
         else
             bigStorage = other.bigStorage->clone();
     }
@@ -28,7 +41,7 @@ public:
     {
         if (small)
         {
-            (reinterpret_cast<function_storage_base*>(other.smallStorage))->moveTo(smallStorage);
+            (reinterpret_cast<function_storage_base*>(&other.smallStorage))->moveTo(&smallStorage);
         }
         else
         {
@@ -39,7 +52,7 @@ public:
     template <typename CallableType>
     function(CallableType f)
     {
-        if constexpr (sizeof(function_storage<CallableType>) <= SMALL_SIZE * sizeof(char))
+        if constexpr (is_small<CallableType>::value)
         {
             small = true;
             new (&smallStorage) function_storage<CallableType>(std::move(f));
@@ -47,14 +60,14 @@ public:
         else
         {
             small = false;
-            bigStorage = std::make_unique<function_storage<CallableType>>(f);
+            bigStorage = std::make_unique<function_storage<CallableType>>(std::move(f));
         }
     }
 
     ~function()
     {
         if (small)
-            reinterpret_cast<function_storage_base*>(smallStorage)->~function_storage_base();
+            reinterpret_cast<function_storage_base*>(&smallStorage)->~function_storage_base();
         else
             bigStorage.reset();
     }
@@ -63,29 +76,27 @@ public:
     {
         if (small && other.small)
         {
-            char tmp[SMALL_SIZE];
-            (reinterpret_cast<function_storage_base*>(other.smallStorage))->moveTo(tmp);
-            (reinterpret_cast<function_storage_base*>(smallStorage))->moveTo(other.smallStorage);
-            (reinterpret_cast<function_storage_base*>(tmp))->moveTo(smallStorage);
+            SmallObjectType tmp;
+            (reinterpret_cast<function_storage_base*>(&other.smallStorage))->moveTo(&tmp);
+            (reinterpret_cast<function_storage_base*>(&smallStorage))->moveTo(&other.smallStorage);
+            (reinterpret_cast<function_storage_base*>(&tmp))->moveTo(&smallStorage);
         }
         else if (!small && !other.small)
         {
-            auto tmp = std::move(other.bigStorage);
-            other.bigStorage = std::move(bigStorage);
-            bigStorage = std::move(tmp);
+            std::swap(bigStorage, other.bigStorage);
         }
         else if (small && !other.small)
         {
             auto tmp = std::move(other.bigStorage);
-            (reinterpret_cast<function_storage_base*>(smallStorage))->moveTo(other.smallStorage);
+            (reinterpret_cast<function_storage_base*>(&smallStorage))->moveTo(&other.smallStorage);
             bigStorage = std::move(tmp);
         }
         else
         {
-            char tmp[SMALL_SIZE];
-            (reinterpret_cast<function_storage_base*>(other.smallStorage))->moveTo(tmp);
-            other.bigStorage = std::move(bigStorage);
-            (reinterpret_cast<function_storage_base*>(tmp))->moveTo(smallStorage);
+            SmallObjectType tmp;
+            (reinterpret_cast<function_storage_base*>(&other.smallStorage))->moveTo(&tmp);
+            std::swap(other.bigStorage, bigStorage);
+            (reinterpret_cast<function_storage_base*>(&tmp))->moveTo(&smallStorage);
         }
         std::swap(small, other.small);
     }
@@ -93,20 +104,21 @@ public:
     function& operator=(function const& other)
     {
         auto tmp(other);
-        this->swap(tmp);
+        swap(tmp);
         return *this;
     }
 
     function& operator=(function&& other) noexcept
     {
-        this->swap(other);
+        auto tmp(std::move(other));
+        swap(tmp);
         return *this;
     }
 
     ReturnType operator()(Args&&... args) const
     {
         if (small)
-            return (reinterpret_cast<function_storage_base*>(smallStorage))->invoke(std::forward<Args>(args)...);
+            return (reinterpret_cast<function_storage_base*>(&smallStorage))->invoke(std::forward<Args>(args)...);
         else if (bigStorage)
              return bigStorage->invoke(std::forward<Args>(args)...);
         else
@@ -145,7 +157,7 @@ private:
 
         ReturnType invoke(Args&&... args)
         {
-            return func(args...);
+            return func(std::forward<Args>(args)...);
         }
 
         std::unique_ptr<function_storage_base> clone() const
@@ -168,7 +180,7 @@ private:
     bool small;
     union
     {
-        mutable char smallStorage[SMALL_SIZE];
+        mutable SmallObjectType smallStorage;
         std::unique_ptr<function_storage_base> bigStorage;
     };
 };
