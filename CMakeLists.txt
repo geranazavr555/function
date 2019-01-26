@@ -14,6 +14,7 @@ add_executable(run-tests
         gtest/gtest-all.cc
         gtest/gtest.h
         gtest/gtest_main.cc
+        function.h
         tests.cpp)
 
 target_link_libraries(run-tests -lpthread)
