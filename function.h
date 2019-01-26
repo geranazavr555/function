@@ -18,7 +18,6 @@ public:
 
     function(function const& other): small(other.small)
     {
-        std::cout << "copy";
         if (small)
             (reinterpret_cast<function_storage_base const*>(other.smallStorage))->cloneTo(smallStorage);
         else
@@ -27,7 +26,6 @@ public:
 
     function(function&& other) noexcept: small(other.small)
     {
-        //memmove(smallStorage, other.smallStorage, SMALL_SIZE);
         if (small)
         {
             (reinterpret_cast<function_storage_base*>(other.smallStorage))->moveTo(smallStorage);
