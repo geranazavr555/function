@@ -117,6 +117,15 @@ TEST(copying, operator_eq)
     ASSERT_EQ(g(), 4);
 }
 
+TEST(copying, maxim_test)
+{
+    std::vector<int> a = {1, 2, 3};
+    function<int()> f([a](){return a[1];});
+    function<int()> g(f);
+    ASSERT_EQ(f(), 2);
+    ASSERT_EQ(g(), 2);
+}
+
 TEST(swap, simple)
 {
     function<int()> f([](){return 5;});

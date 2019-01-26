@@ -19,7 +19,7 @@ public:
     function(function const& other): small(other.small)
     {
         if (small)
-            memcpy(smallStorage, other.smallStorage, SMALL_SIZE);
+            (reinterpret_cast<function_storage_base const*>(other.smallStorage))->cloneTo(smallStorage);
         else
             bigStorage = other.bigStorage->clone();
     }
@@ -63,11 +63,8 @@ public:
 
     function& operator=(function const& other)
     {
-        small = other.small;
-        if (small)
-            memcpy(smallStorage, other.smallStorage, SMALL_SIZE);
-        else
-            bigStorage = other.bigStorage->clone();
+        auto tmp(other);
+        this->swap(tmp);
         return *this;
     }
 
@@ -77,12 +74,12 @@ public:
         return *this;
     }
 
-    ReturnType operator()(Args... args)
+    ReturnType operator()(Args&&... args)
     {
         if (small)
-            return (reinterpret_cast<function_storage_base*>(smallStorage))->invoke(args...);
+            return (reinterpret_cast<function_storage_base*>(smallStorage))->invoke(std::forward<Args>(args)...);
         else if (bigStorage)
-             return bigStorage->invoke(args...);
+             return bigStorage->invoke(std::forward<Args>(args)...);
         else
             throw std::bad_function_call();
     }
@@ -99,7 +96,8 @@ private:
         function_storage_base() noexcept {}
         virtual ~function_storage_base() noexcept {}
         virtual ReturnType invoke(Args... args) = 0;
-        virtual std::unique_ptr<function_storage_base> clone() noexcept = 0;
+        virtual std::unique_ptr<function_storage_base> clone() const noexcept = 0;
+        virtual void cloneTo(void* destination) const = 0;
 
         function_storage_base(function_storage_base const&) = delete;
         void operator= (function_storage_base const&) = delete;
@@ -117,9 +115,14 @@ private:
             return func(args...);
         }
 
-        std::unique_ptr<function_storage_base> clone() noexcept
+        std::unique_ptr<function_storage_base> clone() const noexcept
         {
             return std::make_unique<function_storage>(func);
+        }
+
+        void cloneTo(void* destination) const
+        {
+            new (destination) function_storage<CallableType>(func);
         }
     };
 
