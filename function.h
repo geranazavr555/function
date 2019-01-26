@@ -2,6 +2,9 @@
 #define FUNCTION_FUNCTION_H
 
 #include <memory>
+#include <functional>
+
+constexpr size_t SMALL_SIZE = 32;
 
 template <typename T>
 class function;
@@ -10,40 +13,78 @@ template <typename ReturnType, typename... Args>
 class function<ReturnType(Args...)>
 {
 public:
-    function() noexcept : storage() {}
-    function(std::nullptr_t) noexcept : storage() {}
-    function(function const& other): storage(other.storage->clone()) {}
+    function() noexcept : small(false), bigStorage() {}
+    function(std::nullptr_t) noexcept : function() {}
+
+    function(function const& other): small(other.small)
+    {
+        if (small)
+            memcpy(smallStorage, other.smallStorage, SMALL_SIZE);
+        else
+            bigStorage = other.bigStorage->clone();
+    }
+
+    function(function&& other) noexcept; //TODO
 
     template <typename CallableType>
-    function(CallableType f): storage(new function_storage<CallableType>(f)) {}
+    function(CallableType f)
+    {
+        if (sizeof(function_storage<CallableType>) <= SMALL_SIZE * sizeof(char))
+        {
+            small = true;
+            new (&smallStorage) function_storage<CallableType>(f);
+        }
+        else
+        {
+            small = false;
+            bigStorage = std::make_unique<function_storage<CallableType>>(f);
+        }
+    }
+
+    ~function()
+    {
+        if (small)
+            reinterpret_cast<function_storage_base*>(smallStorage)->~function_storage_base();
+        else
+            bigStorage.reset();
+    }
+
+    void swap(function& other) noexcept; //TODO
 
     function& operator=(function const& other)
     {
-        storage = other.storage->clone();
+        small = other.small;
+        if (small)
+            memcpy(smallStorage, other.smallStorage, SMALL_SIZE);
+        else
+            bigStorage = other.bigStorage->clone();
         return *this;
     }
 
     ReturnType operator()(Args... args)
     {
-        return storage->invoke(args...);
+        if (small)
+            return (reinterpret_cast<function_storage_base*>(smallStorage))->invoke(args...);
+        else if (bigStorage)
+             return bigStorage->invoke(args...);
+        else
+            throw std::bad_function_call();
     }
 
-
+    explicit operator bool() const noexcept; //TODO
 
 private:
     class function_storage_base
     {
     public:
-        function_storage_base() {}
-        virtual ~function_storage_base() {}
+        function_storage_base() noexcept {}
+        virtual ~function_storage_base() noexcept {}
         virtual ReturnType invoke(Args... args) = 0;
-        virtual std::unique_ptr<function_storage_base> clone() = 0;
+        virtual std::unique_ptr<function_storage_base> clone() noexcept = 0;
 
         function_storage_base(function_storage_base const&) = delete;
         void operator= (function_storage_base const&) = delete;
     };
-
-    typedef std::unique_ptr<function_storage_base> StorageType;
 
     template <typename CallableType>
     class function_storage : public function_storage_base
@@ -51,21 +92,24 @@ private:
         CallableType func;
 
     public:
-        function_storage(CallableType f): function_storage_base(), func(f) {}
+        function_storage(CallableType f) noexcept: function_storage_base(), func(f) {}
         ReturnType invoke(Args... args)
         {
             return func(args...);
         }
 
-        StorageType clone()
+        std::unique_ptr<function_storage_base> clone() noexcept
         {
-            return StorageType(new function_storage<CallableType>(func));
+            return std::make_unique<function_storage>(func);
         }
-
     };
 
 private:
-    StorageType storage;
+    bool small;
+    union {
+        char smallStorage[SMALL_SIZE];
+        std::unique_ptr<function_storage_base> bigStorage;
+    };
 };
 
 #endif //FUNCTION_FUNCTION_H
