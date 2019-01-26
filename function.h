@@ -81,7 +81,7 @@ public:
         return *this;
     }
 
-    ReturnType operator()(Args&&... args)
+    ReturnType operator()(Args&&... args) const
     {
         if (small)
             return (reinterpret_cast<function_storage_base*>(smallStorage))->invoke(std::forward<Args>(args)...);
@@ -146,7 +146,7 @@ private:
     bool small;
     union
     {
-        char smallStorage[SMALL_SIZE];
+        mutable char smallStorage[SMALL_SIZE];
         std::unique_ptr<function_storage_base> bigStorage;
     };
 };
