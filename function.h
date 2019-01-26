@@ -61,11 +61,33 @@ public:
 
     void swap(function& other) noexcept
     {
+        if (small && other.small)
+        {
+            char tmp[SMALL_SIZE];
+            (reinterpret_cast<function_storage_base*>(other.smallStorage))->moveTo(tmp);
+            (reinterpret_cast<function_storage_base*>(smallStorage))->moveTo(other.smallStorage);
+            (reinterpret_cast<function_storage_base*>(tmp))->moveTo(smallStorage);
+        }
+        else if (!small && !other.small)
+        {
+            auto tmp = std::move(other.bigStorage);
+            other.bigStorage = std::move(bigStorage);
+            bigStorage = std::move(tmp);
+        }
+        else if (small && !other.small)
+        {
+            auto tmp = std::move(other.bigStorage);
+            (reinterpret_cast<function_storage_base*>(smallStorage))->moveTo(other.smallStorage);
+            bigStorage = std::move(tmp);
+        }
+        else
+        {
+            char tmp[SMALL_SIZE];
+            (reinterpret_cast<function_storage_base*>(other.smallStorage))->moveTo(tmp);
+            other.bigStorage = std::move(bigStorage);
+            (reinterpret_cast<function_storage_base*>(tmp))->moveTo(smallStorage);
+        }
         std::swap(small, other.small);
-        char tmp[SMALL_SIZE];
-        memcpy(tmp, other.smallStorage, SMALL_SIZE);
-        memcpy(other.smallStorage, smallStorage, SMALL_SIZE);
-        memcpy(smallStorage, tmp, SMALL_SIZE);
     }
 
     function& operator=(function const& other)
@@ -103,9 +125,9 @@ private:
         function_storage_base() noexcept {}
         virtual ~function_storage_base() noexcept {}
         virtual ReturnType invoke(Args&&... args) = 0;
-        virtual std::unique_ptr<function_storage_base> clone() const noexcept = 0;
+        virtual std::unique_ptr<function_storage_base> clone() const = 0;
         virtual void cloneTo(void* destination) const = 0;
-        virtual void moveTo(void* destination) = 0;
+        virtual void moveTo(void* destination) noexcept = 0;
 
         function_storage_base(function_storage_base const&) = delete;
         void operator= (function_storage_base const&) = delete;
@@ -126,7 +148,7 @@ private:
             return func(args...);
         }
 
-        std::unique_ptr<function_storage_base> clone() const noexcept
+        std::unique_ptr<function_storage_base> clone() const
         {
             return std::make_unique<function_storage>(func);
         }
@@ -136,7 +158,7 @@ private:
             new (destination) function_storage<CallableType>(func);
         }
 
-        virtual void moveTo(void* destination)
+        void moveTo(void* destination) noexcept
         {
             new (destination) function_storage<CallableType>(std::move(func));
         }
