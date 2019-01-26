@@ -27,7 +27,15 @@ public:
 
     function(function&& other) noexcept: small(other.small)
     {
-        memmove(smallStorage, other.smallStorage, SMALL_SIZE);
+        //memmove(smallStorage, other.smallStorage, SMALL_SIZE);
+        if (small)
+        {
+            (reinterpret_cast<function_storage_base*>(other.smallStorage))->moveTo(smallStorage);
+        }
+        else
+        {
+            bigStorage = std::move(other.bigStorage);
+        }
     }
 
     template <typename CallableType>
@@ -99,6 +107,7 @@ private:
         virtual ReturnType invoke(Args&&... args) = 0;
         virtual std::unique_ptr<function_storage_base> clone() const noexcept = 0;
         virtual void cloneTo(void* destination) const = 0;
+        virtual void moveTo(void* destination) = 0;
 
         function_storage_base(function_storage_base const&) = delete;
         void operator= (function_storage_base const&) = delete;
@@ -127,6 +136,11 @@ private:
         void cloneTo(void* destination) const
         {
             new (destination) function_storage<CallableType>(func);
+        }
+
+        virtual void moveTo(void* destination)
+        {
+            new (destination) function_storage<CallableType>(std::move(func));
         }
     };
 
