@@ -87,7 +87,10 @@ public:
             throw std::bad_function_call();
     }
 
-    explicit operator bool() const noexcept; //TODO
+    explicit operator bool() const noexcept
+    {
+        return small || bigStorage;
+    }
 
 private:
     class function_storage_base

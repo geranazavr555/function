@@ -144,3 +144,17 @@ TEST(moving, operator_eq)
     g = std::move(f);
     ASSERT_EQ(g(), 5);
 }
+
+TEST(bool_check, negative)
+{
+    function<int()> f;
+    bool c = (f ? true : false);
+    ASSERT_FALSE(c);
+}
+
+TEST(bool_check, positive)
+{
+    function<int()> f(two_plus_two);
+    bool c = (f ? true : false);
+    ASSERT_TRUE(c);
+}
